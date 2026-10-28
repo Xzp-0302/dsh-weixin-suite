@@ -1,0 +1,9 @@
+- insert:
+    - id: dsh-weixin-suite
+      name: dsh-weixin-suite
+      config:
+        enabled: true
+        progress: true
+        toolEvents: false
+        maxFileMiB: 20
+        allowedRoots: []
