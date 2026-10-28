@@ -16,6 +16,7 @@ function validateState(state) {
   for (const a of Object.values(state.accounts)) if (!record(a) || typeof a.cursor !== 'string' || !Array.isArray(a.seen) || a.seen.some(id => typeof id !== 'string')) throw fail('账号运行状态损坏');
   for (const [key, r] of Object.entries(state.routes)) {
     if (!record(r) || key !== r.key || !/^[a-f0-9]{32}$/.test(key) || typeof r.accountId !== 'string' || typeof r.userId !== 'string' || key !== digest(r.accountId + ':' + r.userId).slice(0, 32) || typeof r.contextToken !== 'string' || !Array.isArray(r.quotes)) throw fail('会话路由状态损坏');
+    if (r.transcript != null && (!Array.isArray(r.transcript) || r.transcript.length > 120 || r.transcript.some(m => !record(m) || !['user', 'assistant', 'history'].includes(m.role) || typeof m.text !== 'string' || m.text.length > 4000 || typeof m.id !== 'string' || !Number.isFinite(m.time)))) throw fail('近期会话记录损坏');
   }
   for (const e of state.inbox) if (!record(e) || typeof e.id !== 'string' || !state.routes[e.routeKey] || !record(e.message) || !Array.isArray(e.message.item_list) || !['queued', 'control', 'running', 'interrupted', 'completed', 'failed', 'cancelled'].includes(e.status)) throw fail('消息队列状态损坏');
   for (const e of Object.values(state.outbox)) if (!record(e) || !['preparing', 'sending', 'accepted', 'unknown', 'failed'].includes(e.status)) throw fail('发送记录状态损坏');
@@ -23,7 +24,7 @@ function validateState(state) {
 export class Channel {
   constructor(config, logger) {
     this.config = config; this.logger = logger; this.store = new Store(config.stateDir); this.lifetime = new AbortController();
-    this.accounts = new Map(); this.pollers = []; this.sendChains = new Map(); this.drains = new Map(); this.controllers = new Map(); this.stopping = false; this.closing = null;
+    this.accounts = new Map(); this.pollers = []; this.sendChains = new Map(); this.drains = new Map(); this.controllers = new Map(); this.accountControllers = new Map(); this.accountPollers = new Map(); this.stopping = false; this.closing = null;
     this.interactions = new Interactions((r, text, signal) => this.text(r, text, signal), config.interactionTimeoutSeconds * 1000, {
       save: () => { void this.save().catch(e => this.logger.warn(errorText(e))); },
       answer: async (route, callId, value) => {
@@ -69,11 +70,31 @@ export class Channel {
     return route;
   }
   async start() {
-    for (const account of this.accounts.values()) this.pollers.push(this.poll(account));
-    if (!this.accounts.size) this.logger.info('微信插件未绑定账号；请按 README 使用独立管理命令登录。');
+    for (const account of this.accounts.values()) { if (account.paused) account.status = 'paused'; else this.startAccount(account); }
+    if (!this.accounts.size) this.logger.info('微信助理尚未绑定账号；请从 DSH 左侧“微信助理”页面扫码绑定。');
   }
-  async poll(account) {
-    const signal = this.lifetime.signal; let failures = 0, timeout = 40000;
+  startAccount(account) {
+    if (this.accountPollers.has(account.id) || this.stopping) return;
+    account.status = 'starting';
+    const controller = new AbortController(); this.accountControllers.set(account.id, controller);
+    const task = this.poll(account, controller.signal);
+    this.pollers.push(task); this.accountPollers.set(account.id, task);
+    void task.finally(() => { this.pollers = this.pollers.filter(p => p !== task); if (this.accountPollers.get(account.id) === task) { this.accountPollers.delete(account.id); this.accountControllers.delete(account.id); } }).catch(() => {});
+  }
+  async stopAccount(id) {
+    const account = this.accounts.get(id); if (!account) throw fail('账号不存在');
+    account.status = 'pausing';
+    this.accountControllers.get(id)?.abort();
+    for (const route of Object.values(this.state.routes)) if (route.accountId === id) {
+      this.controllers.get(route.key)?.abort(); this.host.stop(route); this.interactions.cancelRoute(route.key);
+      for (const entry of this.state.inbox) if (entry.routeKey === route.key && entry.status === 'queued') entry.status = 'cancelled';
+    }
+    await this.accountPollers.get(id)?.catch(() => {});
+    await Promise.allSettled(Object.values(this.state.routes).filter(r => r.accountId === id).flatMap(r => [this.drains.get(r.key), this.sendChains.get(r.key), this.host.handles.get(r.key)?.agent.whenIdle()]).filter(Boolean));
+    account.status = 'paused'; await account.api.notify(false).catch(() => {}); await this.save();
+  }
+  async poll(account, accountSignal) {
+    const signal = accountSignal ? AbortSignal.any([this.lifetime.signal, accountSignal]) : this.lifetime.signal; let failures = 0, timeout = 40000;
     await account.api.notify(true, signal).catch(() => {});
     while (!signal.aborted && account.status !== 'expired') {
       try {
@@ -114,6 +135,8 @@ export class Channel {
     this.state.inbox = [...unresolved, ...completed];
     await this.save();
     try {
+      if (['pausing', 'paused'].includes(account.status) || this.accountControllers.get(account.id)?.signal.aborted) { entry.status = 'cancelled'; await this.save(); return; }
+      this.recordMessage(route, 'user', text || message.item_list.map(i => ({ 2: '[图片]', 3: '[语音]', 4: '[文件]', 5: '[视频]' })[i.type] || '').join(' '), id);
       if (await this.interactions.answer(route, text)) { entry.status = 'completed'; await this.save(); await this.text(route, '已提交你的回答。'); return; }
       if (text.startsWith('/')) { entry.status = 'completed'; await this.command(route, text); await this.save(); return; }
       if (message.item_list.length > 20 || text.length > 20000 || unresolved.length > 1000 || this.state.inbox.filter(e => e.routeKey === route.key && ['queued', 'running'].includes(e.status)).length > 10) throw fail('消息过长、附件过多或队列已满');
@@ -149,7 +172,7 @@ export class Channel {
     throw fail('未知命令，发送 /帮助 查看支持的命令');
   }
   async drain(route) {
-    if (this.drains.has(route.key) || this.stopping) return;
+    if (this.drains.has(route.key) || this.stopping || ['pausing', 'paused'].includes(this.accounts.get(route.accountId)?.status)) return;
     const run = this.processRoute(route); this.drains.set(route.key, run);
     try { await run; } catch (e) { this.logger.warn(errorText(e)); this.stopping = true; this.lifetime.abort(); }
     finally { this.drains.delete(route.key); if (!this.stopping && this.state.inbox.some(e => e.routeKey === route.key && e.status === 'queued')) void this.drain(route); }
@@ -158,7 +181,7 @@ export class Channel {
     while (!this.stopping) {
       const entry = this.state.inbox.find(e => e.routeKey === route.key && e.status === 'queued'); if (!entry) break;
       const controller = new AbortController(); this.controllers.set(route.key, controller);
-      const signal = AbortSignal.any([controller.signal, this.lifetime.signal]);
+      const signal = AbortSignal.any([controller.signal, this.lifetime.signal, this.accountControllers.get(route.accountId)?.signal].filter(Boolean));
       const timeout = setTimeout(() => { controller.abort(); this.host.stop(route); }, this.config.taskTimeoutMinutes * 60000);
       entry.status = 'running';
       let typingTimer;
@@ -210,11 +233,23 @@ export class Channel {
     void next.finally(() => { if (this.sendChains.get(route.key) === next) this.sendChains.delete(route.key); }).catch(() => {});
     return next;
   }
+  recordMessage(route, role, text, id = '') {
+    route.lastActive = Date.now();
+    if (role === 'user' && !route.title && text && !text.startsWith('/')) route.title = text.slice(0, 40);
+    route.transcript ||= [];
+    route.transcript.push({ role, text: String(text).slice(0, 4000), id, time: route.lastActive });
+    route.transcript = route.transcript.slice(-120);
+  }
   text(route, text, signal) {
     return this.serial(route, async () => {
       if (!signal) signal = this.lifetime.signal;
+      const account = this.accounts.get(route.accountId);
+      if (!account || ['expired', 'paused', 'pausing'].includes(account.status)) throw fail('微信账号已暂停或登录已过期');
+      const accountSignal = this.accountControllers.get(route.accountId)?.signal;
+      if (accountSignal) signal = AbortSignal.any([signal, accountSignal]);
       signal.throwIfAborted();
       const receipts = await this.accounts.get(route.accountId).api.sendText(route, text, { signal }); route.sent += receipts.length;
+      this.recordMessage(route, 'assistant', text, receipts.at(-1)?.messageId || '');
       for (const receipt of receipts) if (receipt.messageId) route.quotes.push({ id: receipt.messageId, text: text.slice(0, 6000) });
       route.quotes = route.quotes.slice(-100); await this.save(); return receipts;
     });
@@ -226,12 +261,14 @@ export class Channel {
       const old = this.state.outbox[id];
       if (old) { if (old.status === 'accepted') return old; throw fail('该发送操作已有记录但结果未确认，未重复发送；请检查微信后重新发起'); }
       const account = this.accounts.get(route.accountId);
-      const api = account?.api; if (!api || account.status === 'expired') throw fail('账号未运行或已过期');
+      const api = account?.api; if (!api || ['expired', 'paused', 'pausing'].includes(account.status)) throw fail('账号未运行、已暂停或已过期');
+      const accountSignal = this.accountControllers.get(route.accountId)?.signal;
+      if (accountSignal) signal = AbortSignal.any([signal, accountSignal]);
       signal?.throwIfAborted();
       if (args.caption && args.caption.length > 20000) throw fail('附言过长');
       let attachment, voice, kind = args.kind || 'auto';
       if (args.path) {
-        attachment = await readAllowedFile(args.path, this.config.allowedRoots.length ? this.config.allowedRoots : [this.config.workspace], this.store.dir, this.config.maxFileMiB * 1048576);
+        attachment = await readAllowedFile(args.path, [...new Set([this.config.workspace, ...this.config.allowedRoots])], this.store.dir, this.config.maxFileMiB * 1048576);
         if (kind === 'auto') kind = inferKind(attachment.name);
         if (kind === 'voice') voice = await prepareVoice(attachment.data, { signal, ffmpegPath: this.config.ffmpegPath, maxVoiceSeconds: this.config.maxVoiceSeconds });
       } else if (!args.text) throw fail('需要提供文字或文件路径');
@@ -250,6 +287,7 @@ export class Channel {
         if (item) receipt = await api.sendItem(route, { ...item, ...(quote ? { ref_msg: quote } : {}) }, { signal, clientId: record.clientId });
         else { const results = await api.sendText(route, args.text, { signal, quote }); receipt = results.at(-1); }
         record.status = 'accepted'; record.messageId = receipt?.messageId || null; route.sent++;
+        this.recordMessage(route, 'assistant', attachment ? `[${kind === 'voice' ? '语音' : '附件'}] ${attachment.name}${args.caption ? '\n' + args.caption : ''}` : args.text, record.messageId || '');
         if (record.messageId) route.quotes.push({ id: record.messageId, text: (args.text || attachment.name).slice(0, 6000) }); route.quotes = route.quotes.slice(-100);
         await this.save(); return record;
       } catch (e) {

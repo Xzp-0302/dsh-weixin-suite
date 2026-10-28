@@ -33,7 +33,7 @@ export class WeixinApi {
       Object.assign(headers, { 'Content-Type': 'application/json', AuthorizationType: 'ilink_bot_token', 'X-WECHAT-UIN': Buffer.from(String(randomBytes(4).readUInt32BE())).toString('base64') });
       if (authenticated && this.token) headers.Authorization = 'Bearer ' + this.token;
     }
-    const baseInfo = { channel_version: PROTOCOL_VERSION, bot_agent: 'DSHWeixinSuite/0.1.0' };
+    const baseInfo = { channel_version: PROTOCOL_VERSION, bot_agent: 'DSHWeixinSuite/0.2.0' };
     let response;
     try { response = await this.fetch(new URL('/ilink/bot/' + endpoint, trustedUrl(base)), { method: get ? 'GET' : 'POST', headers, redirect: 'error', signal: combineSignal(signal, timeout), ...(!get ? { body: JSON.stringify(authenticated ? { ...body, base_info: baseInfo } : body) } : {}) }); }
     catch (e) { if (signal?.aborted) throw signal.reason; throw fail('微信网络请求失败或超时，发送结果可能未知'); }

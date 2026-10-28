@@ -5,6 +5,7 @@ import { Channel } from './channel.js';
 import { HarnessAdapter } from './harness.js';
 import { registerTools } from './tools.js';
 import { defaultStateDir, homePath, errorText } from './security.js';
+import { Dashboard, registerDashboardTransport } from './dashboard.js';
 
 export const name = 'dsh-weixin-suite';
 export const inject = ['agents', 'agentPresets'];
@@ -46,6 +47,11 @@ export async function apply(ctx, config) {
   channel.host = new HarnessAdapter(ctx, options, channel, attach);
   await channel.init();
   ctx.effect(() => () => channel.close());
+  const dashboard = new Dashboard(channel);
+  channel.dashboard = dashboard;
+  ctx.effect(() => () => dashboard.close());
+  await dashboard.init();
+  registerDashboardTransport(ctx, dashboard);
   ctx.effect(() => async () => { await Promise.allSettled([...registrations.values()].map(dispose => dispose())); registrations.clear(); });
   ctx.on('agent/created', ({ agent }) => { attach(agent.ctx, agent); });
   ctx.on('agent/disposed', ({ agent }) => { void registrations.get(agent)?.()?.catch(e => ctx.logger.warn(errorText(e))); registrations.delete(agent); });
@@ -80,6 +86,6 @@ export async function apply(ctx, config) {
   });
   for (const agent of ctx.agents.list()) attach(agent.ctx, agent);
   // Cordis disposes in reverse registration order: cancel work before removing scoped tools.
-  ctx.effect(() => () => channel.close());
+  ctx.effect(() => async () => { await dashboard.close(); await channel.close(); });
   await channel.start();
 }

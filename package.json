@@ -1,17 +1,79 @@
 {
   "name": "dsh-weixin-suite",
-  "version": "0.1.0-rc.1",
+  "version": "0.2.0-rc.1",
   "description": "Personal WeChat iLink messaging, attachments and remote agent control for DeepSeek Harness",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=24.9.0", "dsh": ">=0.2.1-rc.3 <0.3.0" },
-  "exports": { ".": "./src/index.js", "./locale/*.json": "./locale/*.json", "./icon": "./icon.svg" },
-  "bin": { "dsh-weixin": "./bin/cli.js" },
-  "files": ["src/", "bin/", "scripts/", "locale/", "icon.svg", "cordis.patch.yml", "README.md", "docs/", "LICENSE", "THIRD_PARTY_NOTICES.md"],
-  "scripts": { "market:generate": "node scripts/market.js" },
-  "dependencies": { "qrcode-terminal": "0.12.0" },
-  "optionalDependencies": { "silk-wasm": "3.7.1" },
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
-  "keywords": ["dsh-plugin", "deepseek-harness", "wechat", "weixin", "ilink", "attachments"],
-  "publishConfig": { "access": "public" }
+  "engines": {
+    "node": ">=24.9.0",
+    "dsh": ">=0.2.1-rc.3 <0.3.0"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "bin": {
+    "dsh-weixin": "./bin/cli.js"
+  },
+  "files": [
+    "src/",
+    "bin/",
+    "scripts/",
+    "client.js",
+    "locale/",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "docs/",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "market:generate": "node scripts/market.js"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4",
+    "qrcode-terminal": "0.12.0"
+  },
+  "optionalDependencies": {
+    "silk-wasm": "3.7.1"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "wechat",
+    "weixin",
+    "ilink",
+    "attachments"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Xzp-0302/dsh-weixin-suite.git"
+  },
+  "homepage": "https://github.com/Xzp-0302/dsh-weixin-suite#readme",
+  "bugs": {
+    "url": "https://github.com/Xzp-0302/dsh-weixin-suite/issues"
+  }
 }

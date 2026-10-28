@@ -47,7 +47,7 @@ export class Store {
     await rm(file);
   }
   async read(name, fallback) {
-    if (!['accounts', 'runtime'].includes(name)) throw fail('无效的插件状态文件');
+    if (!['accounts', 'runtime', 'settings'].includes(name)) throw fail('无效的插件状态文件');
     try {
       const file = path.join(this.dir, name + '.json');
       if ((await lstat(file)).isSymbolicLink()) throw fail('状态文件不能是符号链接');
@@ -56,7 +56,7 @@ export class Store {
     catch (e) { if (e.code === 'ENOENT') return fallback; throw fail('插件状态损坏，已停止以免覆盖原数据'); }
   }
   write(name, value) {
-    if (!['accounts', 'runtime'].includes(name)) throw fail('无效的插件状态文件');
+    if (!['accounts', 'runtime', 'settings'].includes(name)) throw fail('无效的插件状态文件');
     const serialized = JSON.stringify(value, null, 2);
     const task = this.chain.then(async () => {
       const dest = path.join(this.dir, name + '.json'), temp = dest + '.' + randomUUID() + '.tmp';
@@ -71,6 +71,7 @@ export class Store {
     const ids = new Set(), bots = new Set();
     for (const a of accounts) {
       assertId(a.id);
+      if ((a.label != null && (typeof a.label !== 'string' || a.label.length > 60)) || (a.paused != null && typeof a.paused !== 'boolean')) throw fail('账号显示名称或暂停状态格式无效');
       if (typeof a.token !== 'string' || !a.token || typeof a.userId !== 'string' || !a.userId || typeof a.botId !== 'string' || !a.botId || (a.allowedPeers != null && (!Array.isArray(a.allowedPeers) || a.allowedPeers.length > 32 || !a.allowedPeers.every(p => typeof p === 'string' && p.length <= 256)))) throw fail('账号凭证不完整，请重新绑定');
       if (ids.has(a.id) || bots.has(a.botId)) throw fail('账号索引包含重复记录');
       ids.add(a.id); bots.add(a.botId);

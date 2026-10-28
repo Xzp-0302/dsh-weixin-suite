@@ -44,7 +44,16 @@ export function registerTools(ctx, channel) {
     async execute(args, exec) {
       const own = channel.host.owns(exec.agent);
       const accounts = [...channel.accounts.values()].filter(a => (!own || a.id === own.accountId) && (!args.account || a.id === args.account));
-      return JSON.stringify({ accounts: accounts.map(a => ({ account: a.id, status: a.status })), maxFileMiB: channel.config.maxFileMiB, allowedRoots: channel.config.allowedRoots.length ? channel.config.allowedRoots : [channel.config.workspace], quotes: own ? own.quotes.slice(-15) : [] });
+      return JSON.stringify({ accounts: accounts.map(a => ({ account: a.id, status: a.status })), maxFileMiB: channel.config.maxFileMiB, allowedRoots: [...new Set([channel.config.workspace, ...channel.config.allowedRoots])], quotes: own ? own.quotes.slice(-15) : [] });
+    },
+  }));
+  ctx.tools.register(defineTool({
+    name: 'weixin_sessions', description: 'Read the WeChat assistant conversation list. WeChat-origin callers only see their own conversation. Account binding, approval decisions and permission settings are user-only in the dashboard.',
+    parameters: {}, output: textOutput,
+    async execute(_args, exec) {
+      const own = channel.host.owns(exec.agent);
+      const sessions = channel.dashboard?.snapshot().sessions || [];
+      return JSON.stringify(sessions.filter(session => !own || session.key === own.key));
     },
   }));
   ctx.tools.register(defineTool({

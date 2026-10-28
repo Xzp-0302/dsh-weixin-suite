@@ -18,7 +18,7 @@ if (!Number.isFinite(timestamp) || timestamp > Date.now()) throw new Error('发�
 const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 const icon = await readFile(path.join(root, 'icon.svg'));
 if (icon.length > 32768) throw new Error('市场图标超过 32 KiB');
-const index = { format: 1, title: { en: 'WeChat suite', zh: '微信全功能通道' }, plugins: [{ name: pkg.name, title: { en: 'WeChat suite', zh: '微信全功能通道' }, description: { en: pkg.description, zh: '个人微信消息、附件和 Harness 远程任务通道。' }, author: args.author.trim(), icon: 'data:image/svg+xml;base64,' + icon.toString('base64'), homepage: repository.href, repository: { url: repository.href }, versions: [{ version: pkg.version, publishTimestamp: Math.floor(timestamp / 1000), source: { type: 'npm', ...(args.registry ? { registry: args.registry } : {}) }, engines: { dsh: pkg.engines.dsh } }] }] };
+const index = { format: 1, title: { en: 'WeChat assistant', zh: '微信助理' }, plugins: [{ name: pkg.name, title: { en: 'WeChat assistant', zh: '微信助理' }, description: { en: pkg.description, zh: '在 DSH 侧栏扫码绑定、管理微信会话及设置，收发个人微信消息与附件。' }, author: args.author.trim(), icon: 'data:image/svg+xml;base64,' + icon.toString('base64'), homepage: repository.href, repository: { url: repository.href }, versions: [{ version: pkg.version, publishTimestamp: Math.floor(timestamp / 1000), source: { type: 'npm', ...(args.registry ? { registry: args.registry } : {}) }, engines: { dsh: pkg.engines.dsh } }] }] };
 await mkdir(path.join(root, 'market'), { recursive: true });
 await writeFile(path.join(root, 'market', 'index.json'), JSON.stringify(index, null, 2) + '\n');
 console.log('已生成 market/index.json；没有执行上传或发布。');
