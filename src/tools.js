@@ -2,8 +2,10 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 import { fail, errorText } from './security.js';
 
 const textOutput = { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] };
-export function registerTools(ctx, channel) {
-  ctx.tools.register(defineTool({
+// Yield the exact effect disposers so the caller owns the complete tool group.
+// Calling register() inside another effect does not transfer its ownership.
+export function* registerTools(ctx, channel) {
+  yield ctx.tools.register(defineTool({
     name: 'weixin_send',
     description: 'Send a user-requested text or local attachment to the linked personal WeChat chat. Supports image, file, video and SILK voice. The recipient is fixed by the current chat; never use for unsolicited uploads. accepted means the gateway accepted it, not that the person read it. On unknown outcome do not retry automatically.',
     parameters: {
@@ -38,7 +40,7 @@ export function registerTools(ctx, channel) {
     },
     presentCall: args => ({ card: 'generic', title: '发送到微信', content: [{ type: 'text', text: args.path || args.text || '' }] }),
   }));
-  ctx.tools.register(defineTool({
+  yield ctx.tools.register(defineTool({
     name: 'weixin_status', description: 'Read WeChat account aliases, connection state, local limits and cached quote IDs. Does not reveal tokens or user identifiers.',
     parameters: { account: { type: 'string' } }, output: textOutput,
     async execute(args, exec) {
@@ -47,7 +49,7 @@ export function registerTools(ctx, channel) {
       return JSON.stringify({ accounts: accounts.map(a => ({ account: a.id, status: a.status })), maxFileMiB: channel.config.maxFileMiB, allowedRoots: [...new Set([channel.config.workspace, ...channel.config.allowedRoots])], quotes: own ? own.quotes.slice(-15) : [] });
     },
   }));
-  ctx.tools.register(defineTool({
+  yield ctx.tools.register(defineTool({
     name: 'weixin_sessions', description: 'Read the WeChat assistant conversation list. WeChat-origin callers only see their own conversation. Account binding, approval decisions and permission settings are user-only in the dashboard.',
     parameters: {}, output: textOutput,
     async execute(_args, exec) {
@@ -56,7 +58,7 @@ export function registerTools(ctx, channel) {
       return JSON.stringify(sessions.filter(session => !own || session.key === own.key));
     },
   }));
-  ctx.tools.register(defineTool({
+  yield ctx.tools.register(defineTool({
     name: 'weixin_typing', description: 'Set or clear the typing indicator in the current WeChat-origin chat.',
     parameters: { active: { type: 'boolean', required: true } }, output: textOutput,
     async execute(args, exec) {

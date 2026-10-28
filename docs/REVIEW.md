@@ -81,3 +81,9 @@
 本版只执行 JavaScript 语法解析、JSON/文件存在性与 Git 差异检查；没有安装依赖、导入插件主体、运行测试、启动 Harness、扫码或联网发送。实际加载、交互和微信服务仍由用户验收。没有修改现有 Codex 微信桥接。
 
 本版最终使用 Node.js 24.22.1 对全部 16 个 JavaScript 文件执行 `--check`，并解析 3 个 JSON 文件；全部通过，未执行文件主体。修正 Git 忽略规则，以便 README、变更记录、第三方声明和验收文档随 Git 安装分发。
+
+## 生命周期修正与版本重置（2026-10-28）
+
+用户实际验收发现 weixin_send 重名。前次声称所有嵌套注册自动归入外围 effect 的判断错误；Cordis 仅收集明确返回或 yield 的 disposer。现在 registerTools 为 generator，外围 yield*，prompt section 同样 yield。同步返回空值的 disposer 通过 Promise.resolve().then 调用；插件退出等待全部清理。已对照 vendor/cordis/src/fiber.ts 和 dsh-scope/store.ts 静态检查异常回滚及双重归属。
+
+新增 Git 更新采用 DSH 原生管理器替换/回退，不复用旧 channel，也不绕开同名冲突。查询模型按需进行，仅名称和 ID 进入页面。使用已核对的主题变量替换亮色回退；增加说明与输入边界。版本号按用户要求重置为 0.1.0-rc.1。以上均待用户实际加载与功能验收，未执行测试。

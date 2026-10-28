@@ -1,4 +1,6 @@
 import path from 'node:path';
+import metadata from '../package.json' with { type: 'json' };
+import { replaceGitBundle } from './update.js';
 import { realpath, stat } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import QRCode from 'qrcode';
@@ -11,7 +13,7 @@ function settingsOf(config) { return Object.fromEntries(editable.map(key => [key
 
 /** Owner-only management operations shared by the in-app dashboard; credentials never cross the wire. */
 export class Dashboard {
-  constructor(channel) { this.channel = channel; this.binding = null; this.mutations = Promise.resolve(); this.closed = false; }
+  constructor(channel, ctx) { this.ctx = ctx; this.catalog = []; this.update = { status: "idle" }; this.channel = channel; this.binding = null; this.mutations = Promise.resolve(); this.closed = false; }
   async init() {
     const saved = await this.channel.store.read('settings', null);
     if (saved) Object.assign(this.channel.config, await this.validateSettings(saved, false));
@@ -35,7 +37,7 @@ export class Dashboard {
       queued: channel.state.inbox.filter(e => e.routeKey === r.key && e.status === 'queued').length,
     })).sort((a, b) => b.lastActive - a.lastActive);
     const binding = this.binding ? { id: this.binding.id, account: this.binding.account, status: this.binding.status, image: this.binding.image, expiresAt: this.binding.expiresAt, error: this.binding.error } : null;
-    return { version: '0.2.0-rc.1', stopped: channel.stopping, accounts, sessions, binding, settings: settingsOf(channel.config), workspace: channel.config.workspace };
+    return { version: metadata.version, stopped: channel.stopping, accounts, sessions, binding, update: this.update, settings: settingsOf(channel.config), workspace: channel.config.workspace };
   }
   route(key) { const route = this.channel.state.routes[key]; if (!route || !this.channel.accounts.has(route.accountId)) throw fail('会话不存在'); return route; }
   session(key) {
@@ -139,12 +141,56 @@ export class Dashboard {
     if (action === 'resume') this.channel.startAccount(account);
     return this.snapshot();
   }
+  async choices(provider) {
+    if (!this.llm) return { providers: [], models: [], unavailable: true };
+    const providers = this.llm.listProviders().map(p => ({ id: p.id, name: p.name || p.id }));
+    if (!provider) return { providers, models: [] };
+    if (typeof provider !== 'string' || !providers.some(p => p.id === provider)) return { providers, models: [] };
+    let timer;
+    let models;
+    try { models = await Promise.race([this.llm.listModels(provider), new Promise((_, reject) => { timer = setTimeout(() => reject(fail('读取模型目录超时，请重试或自定义填写')), 10000); timer.unref(); })]); }
+    finally { clearTimeout(timer); }
+    return { providers, models: models.map(m => ({ id: m.id, name: m.name || m.id })) };
+  }
+  async checkUpdates() {
+    const response = await fetch('https://api.github.com/repos/Xzp-0302/dsh-weixin-suite/tags?per_page=30', { headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.any([this.channel.lifetime.signal, AbortSignal.timeout(15000)]), redirect: 'error' });
+    if (!response.ok) throw fail('无法读取 GitHub 版本列表，请检查网络或稍后重试');
+    const tags = JSON.parse((await readLimited(response, 65536)).toString('utf8'));
+    if (!Array.isArray(tags)) throw fail('版本目录格式无效');
+    this.catalog = tags.filter(t => /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/.test(t.name) && /^[a-f0-9]{40}$/.test(t.commit?.sha)).map(t => ({ tag: t.name, sha: t.commit.sha }));
+    return { versions: this.catalog, available: Boolean(this.manager) };
+  }
+  startUpdate(tag) {
+    if (!this.manager) throw fail('当前 DSH 未提供原生插件管理服务');
+    if (this.update.status === 'installing') throw fail('更新已在进行中');
+    if (this.channel.controllers.size || [...this.channel.host.handles.keys()].some(k => this.busy(k)) || this.binding && ['creating', 'waiting', 'verification'].includes(this.binding.status)) throw fail('请先结束任务和扫码绑定，再更新插件');
+    const version = this.catalog.find(v => v.tag === tag);
+    if (!version) throw fail('请先检查版本并选择已发布的标签');
+    if (tag === 'v' + metadata.version) throw fail('已经是该版本，无需重复安装');
+    const manager = this.manager;
+    this.update = { status: 'installing', tag };
+    // Return the acknowledgement before HMR disposes this dashboard. Never join
+    // this operation from close(): the manager must be able to unload its caller.
+    this.ctx.effect(() => {
+      const timer = setTimeout(() => {
+        void Promise.resolve().then(() => replaceGitBundle(manager, version.sha)).then(result => {
+          this.update = { status: result.application === 'failed' ? 'failed' : 'complete', tag };
+          if (result.application === 'failed') this.channel.logger.warn('微信助理更新失败，请在 DSH 插件管理中查看安装详情');
+        }).catch(error => { this.update = { status: 'failed', tag }; this.channel.logger.warn(errorText(error)); });
+      }, 500);
+      return () => clearTimeout(timer);
+    }, 'weixin-suite: owner requested native update');
+    return this.update;
+  }
   async perform(action, input = {}) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw fail('操作参数格式无效');
+    if (action === 'choices') return this.choices(input.provider);
+    if (action === 'check-updates') return this.checkUpdates();
     if (action === 'snapshot') return this.snapshot();
     if (action === 'session') return this.session(input.key);
     return this.serial(async () => {
       switch (action) {
+        case 'update': return this.startUpdate(input.tag);
         case 'bind': return this.beginBinding(input.account, input.name);
         case 'bind-cancel': await this.cancelBinding(); return this.snapshot();
         case 'bind-verify':

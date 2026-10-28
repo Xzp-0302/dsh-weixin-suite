@@ -2,7 +2,7 @@
 
 `dsh-weixin-suite` 通过腾讯公开 iLink 协议，把个人微信私聊接入 DeepSeek Harness。提供消息和附件收发、微信内任务控制、审批和提问，以及原生 Agent 发送工具。
 
-这是独立的社区插件，不是腾讯或 DeepSeek 官方产品。当前为 **0.2.0-rc.1，静态审查交付版，尚未运行测试或实机验收**。不能据此宣称可直接投入生产。
+这是独立的社区插件，不是腾讯或 DeepSeek 官方产品。当前为 **0.1.0-rc.1，静态审查交付版，尚未运行测试或实机验收**。不能据此宣称可直接投入生产。
 
 ## 能力
 
@@ -34,7 +34,7 @@
 
 **本版尚未执行功能测试。以下步骤供用户验收时操作。**
 
-1. 在 DSH 原生插件管理中，通过 Git 地址安装并启用本插件。发布者推送标签后，固定版本地址为：`git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.2.0-rc.1`。
+1. 在 DSH 原生插件管理中，通过 Git 地址安装并启用本插件。发布者推送标签后，固定版本地址为：`git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.1.0-rc.1`。
 2. 打开左侧 **微信助理**，进入 **账号与绑定**，点击 **绑定微信**，用手机扫码；需要配对数字时在页面填写。
 3. 从微信发送一条消息，回到 **已有会话** 查看消息、停止任务，或在 DSH 中打开完整会话。
 4. 要发送已有目录里的文件，在 **设置** 添加允许发送的文件夹，例如 `D:\study`，保存即可。
@@ -44,7 +44,7 @@
 如果使用命令安装，可在你实际使用的 profile 中执行（示例以 `desktop` 为名）：
 
 ```powershell
-dsh plugin --profile desktop add "git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.2.0-rc.1"
+dsh plugin --profile desktop add "git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.1.0-rc.1"
 ```
 
 本地源码验收仍可使用 DSH 的 `link:` 安装方式。开发者 CLI `bin/cli.js` 保留，供停用插件后的离线维护使用，见其帮助；不作为首次使用的必需步骤。
@@ -165,3 +165,7 @@ node bin/cli.js prune --state-dir D:\dsh-weixin-suite-state --days 30
 - [发布步骤](docs/PUBLISHING.md)
 
 本次不安装、不扫码、不发送、不运行单元/集成/实机测试。已做的静态检查和未解决的验收项应一并保留在发布说明中。
+
+## 更新与旧版迁移
+
+后续在微信助理 → 设置 → 插件更新，检查并选择已发布标签后确认，无需手动卸载。首次从旧实验版迁移需完整退出并重启一次 DSH，以清除旧版遗留的工具注册。无需删除微信绑定数据。供应商和模型支持读取 DSH 配置下拉选择，也可自定义；`!` 提供配置说明与示例。详见 [更新说明](docs/UPGRADING.md)。
