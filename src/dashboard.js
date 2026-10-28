@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { personaDefaults, personaChoices, personaLimits, validatePersona, personaPrompt } from './persona.js';
 import metadata from '../package.json' with { type: 'json' };
 import { replaceGitBundle } from './update.js';
 import { realpath, stat } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import QRCode from 'qrcode';
 import { WeixinApi, login } from './api.js';
 import { assertId, errorText, fail, homePath, readLimited } from './security.js';
 
-const editable = ['allowedRoots', 'maxFileMiB', 'maxVoiceSeconds', 'interactionTimeoutSeconds', 'taskTimeoutMinutes', 'progress', 'toolEvents', 'provider', 'model', 'preset', 'ffmpegPath'];
+const editable = [...Object.keys(personaDefaults), 'allowedRoots', 'maxFileMiB', 'maxVoiceSeconds', 'interactionTimeoutSeconds', 'taskTimeoutMinutes', 'progress', 'toolEvents', 'provider', 'model', 'preset', 'ffmpegPath'];
 const limits = { maxFileMiB: [1, 200], maxVoiceSeconds: [1, 600], interactionTimeoutSeconds: [30, 3600], taskTimeoutMinutes: [1, 240] };
 function settingsOf(config) { return Object.fromEntries(editable.map(key => [key, config[key]])); }
 
@@ -15,6 +16,7 @@ function settingsOf(config) { return Object.fromEntries(editable.map(key => [key
 export class Dashboard {
   constructor(channel, ctx) { this.ctx = ctx; this.catalog = []; this.update = { status: "idle" }; this.channel = channel; this.binding = null; this.mutations = Promise.resolve(); this.closed = false; }
   async init() {
+    for (const key of Object.keys(personaDefaults)) validatePersona(key, this.channel.config[key]);
     const saved = await this.channel.store.read('settings', null);
     if (saved) Object.assign(this.channel.config, await this.validateSettings(saved, false));
     this.channel.interactions.timeoutMs = this.channel.config.interactionTimeoutSeconds * 1000;
@@ -37,7 +39,7 @@ export class Dashboard {
       queued: channel.state.inbox.filter(e => e.routeKey === r.key && e.status === 'queued').length,
     })).sort((a, b) => b.lastActive - a.lastActive);
     const binding = this.binding ? { id: this.binding.id, account: this.binding.account, status: this.binding.status, image: this.binding.image, expiresAt: this.binding.expiresAt, error: this.binding.error } : null;
-    return { version: metadata.version, stopped: channel.stopping, accounts, sessions, binding, update: this.update, settings: settingsOf(channel.config), workspace: channel.config.workspace };
+    return { version: metadata.version, stopped: channel.stopping, accounts, sessions, binding, update: this.update, persona: { defaults: personaDefaults, choices: personaChoices, limits: personaLimits }, settings: settingsOf(channel.config), workspace: channel.config.workspace };
   }
   route(key) { const route = this.channel.state.routes[key]; if (!route || !this.channel.accounts.has(route.accountId)) throw fail('会话不存在'); return route; }
   session(key) {
@@ -52,7 +54,8 @@ export class Dashboard {
     const result = settingsOf(this.channel.config);
     for (const [key, value] of Object.entries(input)) {
       if (!editable.includes(key)) throw fail('包含不允许修改的设置');
-      if (key in limits) { const [min, max] = limits[key]; if (!Number.isInteger(value) || value < min || value > max) throw fail('设置数值超出范围'); }
+      if (Object.hasOwn(personaDefaults, key)) validatePersona(key, value);
+      else if (key in limits) { const [min, max] = limits[key]; if (!Number.isInteger(value) || value < min || value > max) throw fail('设置数值超出范围'); }
       else if (['progress', 'toolEvents'].includes(key)) { if (typeof value !== 'boolean') throw fail('开关设置必须为布尔值'); }
       else if (key === 'allowedRoots') {
         if (!Array.isArray(value) || value.length > 32 || value.some(p => typeof p !== 'string' || !path.isAbsolute(p))) throw fail('发送目录必须为绝对路径，最多 32 个');
@@ -184,6 +187,7 @@ export class Dashboard {
   }
   async perform(action, input = {}) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw fail('操作参数格式无效');
+    if (action === 'persona-preview') return { text: personaPrompt(await this.validateSettings(input.settings, false)) };
     if (action === 'choices') return this.choices(input.provider);
     if (action === 'check-updates') return this.checkUpdates();
     if (action === 'snapshot') return this.snapshot();

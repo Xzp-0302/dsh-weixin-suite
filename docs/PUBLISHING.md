@@ -47,4 +47,4 @@ node scripts/market.js --author <真实作者名> --repository https://github.co
 
 `registry.npmmirror.com` 是 npm 公共包镜像，不作为 Git 仓库托管地，也不能直接 `npm publish` 到该只读镜像。先发布至 npmjs.org，再等待镜像同步；必要时通过 npmmirror 提供的同步入口请求同步。GitHub 的 Git 安装不依赖本包已存在于 npm 镜像，但安装依赖时仍需可用 registry 和网络。未完成 npm 发布前，不应把 npm 安装方式标成已可用。
 
-本次按发布者要求清理旧实验版本的本地标签并重新从 v0.1.0-rc.1 开始。远端标签由发布者清理，不自动强制推送。今后 Git 用户可在助理设置中确认更新；原生 DSH npm 更新入口仍受其 registry 来源限制，插件的 Git 替换与回退说明见 UPGRADING.md。
+本次按发布者要求清理旧实验版本的本地标签并重新从 v0.1.0-rc.1 开始，本次递增为 v0.1.0-rc.1。远端标签由发布者清理，不自动强制推送。今后 Git 用户可在助理设置中确认更新；原生 DSH npm 更新入口仍受其 registry 来源限制，插件的 Git 替换与回退说明见 UPGRADING.md。

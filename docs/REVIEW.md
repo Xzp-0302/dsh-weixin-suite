@@ -87,3 +87,7 @@
 用户实际验收发现 weixin_send 重名。前次声称所有嵌套注册自动归入外围 effect 的判断错误；Cordis 仅收集明确返回或 yield 的 disposer。现在 registerTools 为 generator，外围 yield*，prompt section 同样 yield。同步返回空值的 disposer 通过 Promise.resolve().then 调用；插件退出等待全部清理。已对照 vendor/cordis/src/fiber.ts 和 dsh-scope/store.ts 静态检查异常回滚及双重归属。
 
 新增 Git 更新采用 DSH 原生管理器替换/回退，不复用旧 channel，也不绕开同名冲突。查询模型按需进行，仅名称和 ID 进入页面。使用已核对的主题变量替换亮色回退；增加说明与输入边界。版本号按用户要求重置为 0.1.0-rc.1。以上均待用户实际加载与功能验收，未执行测试。
+
+## 0.1.0-rc.2 个性化复审
+
+使用独立 persona 模块集中默认值、枚举、字数边界与提示词生成；页面和服务端均限制输入。对照 Schemastery 源码采用 z.union，未使用不存在的 z.enum。对照 systemPrompt.section 的动态 text provider，每次组装读取共享配置，明确关闭变量插值；提示词仅在微信 owned agent 注册，并 yield 原 disposer。保存设置不重新注册 section，避免再次引入重名和泄漏。沿用 DSH 模式返回空个性化文本。预览只计算草稿，不调用模型或保存数据；重置只修改个性化草稿。不读取其他应用文件。本版共 18 个 JavaScript 文件，静态检查不代替实际功能验收。
