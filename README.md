@@ -1,6 +1,6 @@
 # DSH 微信助理
 
-[![Version](https://img.shields.io/badge/version-0.1.0--rc.2-blue)](https://github.com/Xzp-0302/dsh-weixin-suite/releases)
+[![Version](https://img.shields.io/badge/version-0.1.0--rc.3-blue)](https://github.com/Xzp-0302/dsh-weixin-suite/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 通过个人微信使用 DeepSeek Harness：交代任务、发送图片和文档、接收回复与文件，并在 DSH 侧栏统一管理账号、会话和个性化设置。
@@ -34,13 +34,13 @@
 在 DSH 原生插件管理中通过 Git 地址安装并启用：
 
 ```text
-git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.1.0-rc.2
+git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.1.0-rc.3
 ```
 
 也可以使用命令行，`desktop` 替换为实际使用的 profile：
 
 ```powershell
-dsh plugin --profile desktop add "git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.1.0-rc.2"
+dsh plugin --profile desktop add "git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.1.0-rc.3"
 ```
 
 安装后打开左侧 **微信助理**。日常操作均在页面完成，不需要预先执行命令行登录、复制令牌或手写 YAML。

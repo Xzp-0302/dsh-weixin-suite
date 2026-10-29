@@ -1,6 +1,6 @@
 {
   "name": "dsh-weixin-suite",
-  "version": "0.1.0-rc.2",
+  "version": "0.1.0-rc.3",
   "description": "Personal WeChat iLink messaging, attachments and remote agent control for DeepSeek Harness",
   "type": "module",
   "license": "MIT",

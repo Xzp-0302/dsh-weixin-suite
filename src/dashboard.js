@@ -178,10 +178,9 @@ export class Dashboard {
     // this operation from close(): the manager must be able to unload its caller.
     this.ctx.effect(() => {
       const timer = setTimeout(() => {
-        void Promise.resolve().then(() => replaceGitBundle(manager, version.sha)).then(result => {
-          this.update = { status: result.application === 'failed' ? 'failed' : 'complete', tag };
-          if (result.application === 'failed') this.channel.logger.warn('微信助理更新失败，请在 DSH 插件管理中查看安装详情');
-        }).catch(error => { this.update = { status: 'failed', tag }; this.channel.logger.warn(errorText(error)); });
+        void Promise.resolve().then(() => replaceGitBundle(manager, version.sha, { onStage: phase => { this.update = { status: 'installing', tag, phase }; } })).then(result => {
+          this.update = { status: result.application === 'restart-required' ? 'restart-required' : 'complete', tag };
+        }).catch(error => { this.update = { ...this.update, status: 'failed', tag, error: errorText(error) }; this.channel.logger.warn(`${tag} 更新失败：${errorText(error)}`); });
       }, 500);
       return () => clearTimeout(timer);
     }, 'weixin-suite: owner requested native update');
