@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import QRCode from 'qrcode';
 import { WeixinApi, login } from './api.js';
 import { assertId, errorText, fail, homePath, readLimited } from './security.js';
+import { approvalDetail, plainText } from './interactions.js';
 
 const editable = [...Object.keys(personaDefaults), 'allowedRoots', 'maxFileMiB', 'maxVoiceSeconds', 'interactionTimeoutSeconds', 'taskTimeoutMinutes', 'progress', 'toolEvents', 'provider', 'model', 'preset', 'ffmpegPath'];
 const limits = { maxFileMiB: [1, 200], maxVoiceSeconds: [1, 600], interactionTimeoutSeconds: [30, 3600], taskTimeoutMinutes: [1, 240] };
@@ -33,7 +34,8 @@ export class Dashboard {
     const channel = this.channel;
     const accounts = [...channel.accounts.values()].map(a => ({ id: a.id, label: a.label || a.id, status: a.status, paused: Boolean(a.paused), peers: a.allowedPeers?.length || 0 }));
     const sessions = Object.values(channel.state.routes).filter(r => channel.accounts.has(r.accountId)).map(r => ({
-      key: r.key, account: r.accountId, title: r.title || '微信会话', sessionId: r.sessionId,
+      key: r.key, account: channel.accounts.get(r.accountId)?.label || r.accountId, title: r.title || '微信会话', sessionId: r.sessionId,
+      pending: [...channel.interactions.pending.values()].filter(p => p.route === r.key).length,
       preview: r.transcript?.at(-1)?.text.slice(0, 100) || r.quotes.at(-1)?.text.slice(0, 100) || '',
       lastActive: r.lastActive || 0, busy: this.busy(r.key), received: r.received, sent: r.sent,
       queued: channel.state.inbox.filter(e => e.routeKey === r.key && e.status === 'queued').length,
@@ -45,7 +47,7 @@ export class Dashboard {
   session(key) {
     const route = this.route(key);
     const transcript = route.transcript || route.quotes.map(q => ({ role: 'history', text: q.text, id: q.id, time: 0 }));
-    const pending = [...this.channel.interactions.pending.entries()].filter(([, p]) => p.route === key).map(([id, p]) => ({ id, kind: p.kind, tool: p.request.toolName || '', reason: p.request.reason || '', questions: p.request.questions || [] }));
+    const pending = [...this.channel.interactions.pending.entries()].filter(([, p]) => p.route === key).map(([id, p]) => ({ id, kind: p.kind, tool: p.request.toolName || '', reason: plainText(p.request.reason), detail: p.kind === 'approval' ? approvalDetail(p.request) : '', questions: p.request.questions || [] }));
     for (const q of route.questions || []) pending.push({ id: q.id, kind: 'questions', tool: '', reason: '', questions: q.questions, late: true });
     return { key, sessionId: route.sessionId, title: route.title || '微信会话', transcript, pending, interrupted: this.channel.state.inbox.filter(e => e.routeKey === key && e.status === 'interrupted').map(e => e.id) };
   }

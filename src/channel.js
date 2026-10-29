@@ -126,9 +126,10 @@ export class Channel {
     message = { ...message, item_list: message.item_list.filter(item => item && typeof item === 'object') };
     const route = this.route(account, message);
     accountState.seen.push(id); accountState.seen = accountState.seen.slice(-2000); route.received++;
-    const text = message.item_list.filter(i => i.type === 1).map(i => typeof i.text_item?.text === 'string' ? i.text_item.text : '').join('\n').trim();
+    const text = message.item_list.map(i => i.type === 1 ? (typeof i.text_item?.text === 'string' ? i.text_item.text : '') : i.type === 3 ? (typeof i.voice_item?.text === 'string' ? i.voice_item.text : '') : '').filter(Boolean).join('\n').trim();
     // Write dedup and inbox together before acknowledging the polling cursor.
-    const entry = { id, routeKey: route.key, message, control: text.startsWith('/'), status: text.startsWith('/') ? 'control' : 'queued', createdAt: Date.now() };
+    // Keep every message out of the task queue until interaction routing finishes.
+    const entry = { id, routeKey: route.key, message, control: true, status: 'control', createdAt: Date.now() };
     this.state.inbox.push(entry);
     const unresolved = this.state.inbox.filter(e => ['queued', 'running', 'interrupted'].includes(e.status));
     const completed = this.state.inbox.filter(e => !['queued', 'running', 'interrupted'].includes(e.status) && e.createdAt > Date.now() - 86400000).slice(-200);
@@ -137,10 +138,11 @@ export class Channel {
     try {
       if (['pausing', 'paused'].includes(account.status) || this.accountControllers.get(account.id)?.signal.aborted) { entry.status = 'cancelled'; await this.save(); return; }
       this.recordMessage(route, 'user', text || message.item_list.map(i => ({ 2: '[图片]', 3: '[语音]', 4: '[文件]', 5: '[视频]' })[i.type] || '').join(' '), id);
-      if (await this.interactions.answer(route, text)) { entry.status = 'completed'; await this.save(); await this.text(route, '已提交你的回答。'); return; }
+      if (message.item_list.every(i => i.type === 1 || i.type === 3) && await this.interactions.answer(route, text)) { entry.status = 'completed'; await this.save(); await this.text(route, '已提交你的决定，助理将继续处理。'); return; }
       if (text.startsWith('/')) { entry.status = 'completed'; await this.command(route, text); await this.save(); return; }
-      if (message.item_list.length > 20 || text.length > 20000 || unresolved.length > 1000 || this.state.inbox.filter(e => e.routeKey === route.key && ['queued', 'running'].includes(e.status)).length > 10) throw fail('消息过长、附件过多或队列已满');
+      if (message.item_list.length > 20 || text.length > 20000 || unresolved.length >= 1000 || this.state.inbox.filter(e => e.routeKey === route.key && ['queued', 'running'].includes(e.status)).length >= 10) throw fail('消息过长、附件过多或队列已满');
       if (!route.contextToken) throw fail('微信消息缺少回复上下文');
+      entry.control = false; entry.status = 'queued'; await this.save();
       void this.drain(route);
     } catch (e) { entry.status = 'failed'; await this.save(); await this.text(route, errorText(e)).catch(() => {}); }
   }

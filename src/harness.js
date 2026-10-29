@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { fail, readAllowedFile } from './security.js';
+import { organizeSession, weixinGroup } from './session-presentation.js';
 
 /** Only public Harness service seams are used; no global profile or app configuration writes. */
 export class HarnessAdapter {
@@ -38,8 +39,24 @@ export class HarnessAdapter {
         : await this.ctx.agents.create({ sessionId: id, meta: { cwd: this.config.workspace, agentPreset: this.config.preset || this.ctx.agentPresets.defaultId }, agentOptions, setup, signal: signal || this.channel.lifetime.signal });
       if (this.channel.stopping) { await handle.dispose(); throw fail('插件已停止'); }
       this.handles.set(route.key, handle); route.sessionId = id; await this.channel.save();
+      await this.organize(route, handle.agent);
       return handle.agent;
     } catch (e) { this.bySession.delete(id); if (handle) { this.handles.delete(route.key); await handle.dispose().catch(() => {}); } throw e; }
+  }
+  async organize(route, agent) {
+    return organizeSession(this.ctx, this.config, route, agent, this.channel.accounts.get(route.accountId));
+  }
+  async organizeHistory() {
+    const routes = Object.values(this.channel.state.routes).filter(r => r.sessionId);
+    if (!routes.length) return;
+    const group = await weixinGroup(this.ctx, this.config.workspace);
+    if (!group) return;
+    for (const route of routes) {
+      // Attach validates the persisted cwd. Deleted sessions or sessions created
+      // in an older workspace do not prevent other conversations from loading.
+      try { await group.attachSession(route.sessionId); }
+      catch { this.ctx.logger.warn(`微信会话 ${route.sessionId} 未归入当前工作区，将在下次打开时按原目录整理。`); }
+    }
   }
   async content(agent, inbound) {
     const content = [{ type: 'text', text: inbound.text || '请处理我发送的附件。' }];
@@ -75,7 +92,7 @@ export class HarnessAdapter {
     const handle = this.handles.get(route.key);
     if (handle) { await handle.dispose(); this.handles.delete(route.key); }
     if (route.sessionId) this.bySession.delete(route.sessionId);
-    route.sessionId = null; route.questions = []; route.lastOutcome = null; await this.channel.save();
+    route.sessionId = null; route.questions = []; route.lastOutcome = null; route.title = ''; await this.channel.save();
   }
   async close() {
     await Promise.allSettled(this.opening.values());

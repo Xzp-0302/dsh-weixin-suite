@@ -1,12 +1,12 @@
 # 发布前准备
 
-当前版本 `0.1.0-rc.1` 是未执行测试的候选源码。完成 ACCEPTANCE.md 后再决定发正式版。已配置真实 GitHub 仓库 Xzp-0302/dsh-weixin-suite；作者和 npm 包名归属仍由发布者确认。
+当前版本 `0.1.0-rc.2` 已通过自动回归、Cordis 事件链及本地模拟页面验证，真实微信联动仍待验收。完成 ACCEPTANCE.md 后再决定发正式版。已配置真实 GitHub 仓库 Xzp-0302/dsh-weixin-suite；作者和 npm 包名归属仍由发布者确认。
 
 1. 已使用独立 Git 仓库。不要上传父目录、references、任何桥接源码、登录状态、个人 workspace 文件或 node_modules。
 2. 确认 `dsh-weixin-suite` 包名是否可用；若更换名字，同步修改 package.json 的 name、cordis.patch.yml 的 name 和 README 安装命令。配置行 id 可保持稳定。
 3. repository、homepage、bugs 已填写真实地址；按需填写 author，确认版本和 engines.dsh。
 4. 验收源码及实际 npm 文件清单，保留 LICENSE 和 THIRD_PARTY_NOTICES.md。不要添加自动执行登录或网络发送的安装脚本。
-5. 用户自行运行 npm 打包/发布；本次未执行这些命令。
+5. 发布前检查 npm 文件清单；本轮只做打包检查，没有发布到 npm。
 
 ```powershell
 npm pack --dry-run --ignore-scripts

@@ -1,6 +1,6 @@
 {
   "name": "dsh-weixin-suite",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0-rc.2",
   "description": "Personal WeChat iLink messaging, attachments and remote agent control for DeepSeek Harness",
   "type": "module",
   "license": "MIT",
@@ -32,7 +32,8 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "market:generate": "node scripts/market.js"
+    "market:generate": "node scripts/market.js",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "qrcode": "1.5.4",

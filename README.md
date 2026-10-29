@@ -1,6 +1,6 @@
 # DSH 微信助理
 
-[![Version](https://img.shields.io/badge/version-0.1.0--rc.1-blue)](https://github.com/Xzp-0302/dsh-weixin-suite/releases)
+[![Version](https://img.shields.io/badge/version-0.1.0--rc.2-blue)](https://github.com/Xzp-0302/dsh-weixin-suite/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 通过个人微信使用 DeepSeek Harness：交代任务、发送图片和文档、接收回复与文件，并在 DSH 侧栏统一管理账号、会话和个性化设置。
@@ -34,13 +34,13 @@
 在 DSH 原生插件管理中通过 Git 地址安装并启用：
 
 ```text
-git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.1.0-rc.1
+git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.1.0-rc.2
 ```
 
 也可以使用命令行，`desktop` 替换为实际使用的 profile：
 
 ```powershell
-dsh plugin --profile desktop add "git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.1.0-rc.1"
+dsh plugin --profile desktop add "git+https://github.com/Xzp-0302/dsh-weixin-suite.git#v0.1.0-rc.2"
 ```
 
 安装后打开左侧 **微信助理**。日常操作均在页面完成，不需要预先执行命令行登录、复制令牌或手写 YAML。
@@ -106,6 +106,12 @@ dsh plugin --profile desktop add "git+https://github.com/Xzp-0302/dsh-weixin-sui
 | `/清理中断` | 清除中断记录，不重新执行任务 |
 | `/批准 编号`、`/拒绝 编号` | 对操作作出一次性决定 |
 | `/回答 编号 答案` | 回答问题；多题用 `|`，多选序号用逗号分隔 |
+
+只有一个等待中的请求时，可直接回复“批准 / 同意 / 允许”或“拒绝 / 不同意 / 不允许”，普通问题可直接回复答案。多个请求同时等待时必须带编号。带转写文字的语音也可回答；图片和文件不会被当作审批。审批只对本次操作有效。
+
+微信创建的会话自动归入 DSH 的“微信助理”工作区分组，标题包含账号名称与首条需求。已有会话在升级后补登记到分组，用户自定义的分组名和会话标题会保留。
+
+管理页设置按模型与回复、语气与个性化、文件与安全、运行设置组织；切换页面保留未保存草稿。审批和提问可在会话详情中直接点击处理。
 
 重试可能重复任务已发生的操作，请确认后使用。一般任务直接发送普通文字，无需添加命令前缀。
 
